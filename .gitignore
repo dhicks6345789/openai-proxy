@@ -1,6 +1,6 @@
 # Go binary & temp files
-go-app
-go-app.exe
+openai-proxy
+openai-proxy.exe
 dist/
 *.log
 

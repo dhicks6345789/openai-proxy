@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 OUT_DIR="dist"
-BIN="go-app"
+BIN="openai-proxy"
 HUGO_SITE="hugo"
 
 # Human-readable file size, portable across Linux/macOS.
@@ -39,12 +39,12 @@ build_target() {
 build_all() {
   mkdir -p "$OUT_DIR"
   echo "==> Compiling for all target platforms..."
-  build_target linux amd64 "" "$OUT_DIR/go-app-linux-amd64"
-  build_target windows amd64 "" "$OUT_DIR/go-app-windows-amd64.exe"
-  build_target darwin amd64 "" "$OUT_DIR/go-app-darwin-amd64"
-  build_target darwin arm64 "" "$OUT_DIR/go-app-darwin-arm64"
-  build_target linux arm64 "" "$OUT_DIR/go-app-rpi-arm64"
-  build_target linux arm 7 "$OUT_DIR/go-app-rpi-armv7"
+  build_target linux amd64 "" "$OUT_DIR/openai-proxy-linux-amd64"
+  build_target windows amd64 "" "$OUT_DIR/openai-proxy-windows-amd64.exe"
+  build_target darwin amd64 "" "$OUT_DIR/openai-proxy-darwin-amd64"
+  build_target darwin arm64 "" "$OUT_DIR/openai-proxy-darwin-arm64"
+  build_target linux arm64 "" "$OUT_DIR/openai-proxy-rpi-arm64"
+  build_target linux arm 7 "$OUT_DIR/openai-proxy-rpi-armv7"
   echo "==> All builds complete in ./$OUT_DIR/"
 }
 
@@ -77,12 +77,12 @@ write_downloads_data() {
   : > "$out"
 
   local entries=(
-    "go-app-linux-amd64|Linux (x64)|🐧|64-bit Linux Desktop / Server"
-    "go-app-windows-amd64.exe|Windows (x64)|🪟|64-bit Windows Desktop"
-    "go-app-darwin-amd64|macOS (Intel x64)|🍎|Intel-based Mac computers"
-    "go-app-darwin-arm64|macOS (Apple Silicon)|🍏|Apple M1 / M2 / M3 / M4 Macs"
-    "go-app-rpi-arm64|Raspberry Pi (ARM64)|🍓|Raspberry Pi 3/4/5 (64-bit OS)"
-    "go-app-rpi-armv7|Raspberry Pi (ARMv7 32-bit)|🍓|Raspberry Pi 2/3/4 (32-bit OS)"
+    "openai-proxy-linux-amd64|Linux (x64)|🐧|64-bit Linux Desktop / Server"
+    "openai-proxy-windows-amd64.exe|Windows (x64)|🪟|64-bit Windows Desktop"
+    "openai-proxy-darwin-amd64|macOS (Intel x64)|🍎|Intel-based Mac computers"
+    "openai-proxy-darwin-arm64|macOS (Apple Silicon)|🍏|Apple M1 / M2 / M3 / M4 Macs"
+    "openai-proxy-rpi-arm64|Raspberry Pi (ARM64)|🍓|Raspberry Pi 3/4/5 (64-bit OS)"
+    "openai-proxy-rpi-armv7|Raspberry Pi (ARMv7 32-bit)|🍓|Raspberry Pi 2/3/4 (32-bit OS)"
   )
 
   local entry filename name icon desc size
@@ -116,7 +116,7 @@ index() {
 
   {
     echo "---"
-    echo 'title: "Go App"'
+    echo 'title: "OpenAI Proxy"'
     echo "---"
     echo
     cat README.md
