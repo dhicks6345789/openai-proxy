@@ -1,8 +1,8 @@
 This Git repository should contain a Go application that compiles into a single (per-platform), self-contained executable containing application logic, web-based user interface and API documentation.
 
-This Git repository is hosted on Github at: https://github.com/dhicks6345789/go-app
+This Git repository is hosted on Github at: https://github.com/dhicks6345789/openapi-proxy
 
-The project homepage is at: https://sansay.co.uk/openai-proxy/
+The project homepage is at: https://sansay.co.uk/openai-proxy
 
 Do a "git pull" at the start of operations to make sure the local repository is up-to-date and then re-read AGENTS.md.
 
