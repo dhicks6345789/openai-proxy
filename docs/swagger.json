@@ -1,10 +1,10 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "API documentation for the self-contained Go application framework.",
-        "title": "Go Self-Contained App API",
+        "description": "Management API and OpenAI-compatible proxy endpoints for the self-contained OpenAI Proxy application. Requests under /v1 are forwarded to the configured upstream with per-user usage accounting and model filtering.",
+        "title": "OpenAI Proxy API",
         "contact": {},
-        "version": "1.0.0"
+        "version": "1.1.0"
     },
     "paths": {
         "/api/v1/health": {
@@ -26,7 +26,7 @@
         },
         "/api/v1/info": {
             "get": {
-                "description": "Returns system metrics, Go version, OS/Arch, and uptime.",
+                "description": "Returns system metrics, Go version, OS/Arch, uptime and a proxy configuration summary.",
                 "produces": [
                     "application/json"
                 ],
@@ -41,53 +41,43 @@
                 }
             }
         },
-        "/api/v1/items": {
+        "/api/v1/logs": {
             "get": {
-                "description": "Returns all stored items.",
+                "description": "Returns the most recent proxied API requests, newest first.",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "List Items",
+                "summary": "Recent Requests",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of entries to return (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/ItemsResponse"
+                            "$ref": "#/definitions/LogResponse"
                         }
                     }
                 }
-            },
-            "post": {
-                "description": "Creates a new item.",
-                "consumes": [
-                    "application/json"
-                ],
+            }
+        },
+        "/api/v1/usage": {
+            "get": {
+                "description": "Returns per-user aggregated request counts and token usage recorded by the proxy.",
                 "produces": [
                     "application/json"
                 ],
-                "summary": "Create Item",
-                "parameters": [
-                    {
-                        "description": "Item to create",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/CreateItemRequest"
-                        }
-                    }
-                ],
+                "summary": "Usage Summary",
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Item"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/ErrorResponse"
+                            "$ref": "#/definitions/UsageResponse"
                         }
                     }
                 }
@@ -109,27 +99,432 @@
                     }
                 }
             }
-        }
-    },
-    "definitions": {
-        "CreateItemRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "example": "Sample Item"
+        },
+        "/v1/audio/speech": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
                 }
             }
         },
+        "/v1/audio/transcriptions": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/audio/translations": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/chat/completions": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/completions": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/embeddings": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/images/generations": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/models": {
+            "get": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/models/{model}": {
+            "get": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/moderations": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/responses": {
+            "post": {
+                "description": "Forwards the request to the configured OpenAI-compatible upstream, records per-user usage and applies the model allow/deny policy. Supports streaming (SSE) responses. Any path under /v1 is forwarded, with the /v1 prefix stripped against the upstream's base path.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "Proxy OpenAI-compatible endpoint",
+                "responses": {
+                    "200": {
+                        "description": "OpenAI-compatible response (JSON, or an SSE event stream for streamed requests)",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "403": {
+                        "description": "Model blocked by policy",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "502": {
+                        "description": "Upstream request failed",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "No upstream configured",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
         "ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "type": "string",
-                    "example": "Invalid request payload"
+                    "$ref": "#/definitions/OpenAIError"
                 }
             }
         },
@@ -146,40 +541,105 @@
                 }
             }
         },
-        "Item": {
+        "LogResponse": {
             "type": "object",
             "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "created_by": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RequestLogEntry"
+                    }
                 }
             }
         },
-        "ItemsResponse": {
+        "OpenAIError": {
             "type": "object",
             "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/Item"
-                    }
+                "code": {
+                    "type": "string",
+                    "example": "model_not_allowed"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Model 'gpt-4' is not permitted by this proxy's model policy."
+                },
+                "param": {
+                    "type": "string",
+                    "example": "model"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "invalid_request_error"
+                }
+            }
+        },
+        "RequestLogEntry": {
+            "type": "object",
+            "properties": {
+                "completion_tokens": {
+                    "type": "integer",
+                    "example": 128
+                },
+                "duration_ms": {
+                    "type": "integer",
+                    "example": 1830
+                },
+                "method": {
+                    "type": "string",
+                    "example": "POST"
+                },
+                "model": {
+                    "type": "string",
+                    "example": "gpt-4o"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "/v1/chat/completions"
+                },
+                "prompt_tokens": {
+                    "type": "integer",
+                    "example": 512
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "stream": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "time": {
+                    "type": "string",
+                    "example": "2026-08-04T12:00:00Z"
+                },
+                "total_tokens": {
+                    "type": "integer",
+                    "example": 640
+                },
+                "user": {
+                    "type": "string",
+                    "example": "alice"
                 }
             }
         },
         "SystemInfoResponse": {
             "type": "object",
             "properties": {
+                "allowed_models": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "api_key_configured": {
+                    "type": "boolean",
+                    "example": true
+                },
                 "arch": {
                     "type": "string",
                     "example": "amd64"
+                },
+                "blocked_models": {
+                    "type": "integer",
+                    "example": 1
                 },
                 "go_version": {
                     "type": "string",
@@ -193,9 +653,27 @@
                     "type": "string",
                     "example": "linux"
                 },
+                "upstream": {
+                    "type": "string",
+                    "example": "https://api.openai.com/v1"
+                },
                 "uptime": {
                     "type": "string",
                     "example": "12m30s"
+                }
+            }
+        },
+        "UsageResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "$ref": "#/definitions/UserUsage"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/UserUsage"
+                    }
                 }
             }
         },
@@ -211,6 +689,42 @@
                     "example": "desktop"
                 },
                 "username": {
+                    "type": "string",
+                    "example": "alice"
+                }
+            }
+        },
+        "UserUsage": {
+            "type": "object",
+            "properties": {
+                "completion_tokens": {
+                    "type": "integer",
+                    "example": 4210
+                },
+                "last_activity": {
+                    "type": "string",
+                    "example": "2026-08-04T12:00:00Z"
+                },
+                "models": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "prompt_tokens": {
+                    "type": "integer",
+                    "example": 15320
+                },
+                "requests": {
+                    "type": "integer",
+                    "example": 42
+                },
+                "total_tokens": {
+                    "type": "integer",
+                    "example": 19530
+                },
+                "user": {
                     "type": "string",
                     "example": "alice"
                 }

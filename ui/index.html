@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Go Self-Contained App</title>
+    <title>OpenAI Proxy</title>
     <link rel="stylesheet" href="vendor/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="style.css" />
   </head>
@@ -11,8 +11,8 @@
     <nav class="navbar navbar-expand-lg border-bottom mb-4">
       <div class="container-fluid">
         <span class="navbar-brand">
-          <span class="brand-icon">⚡</span>
-          Go Self-Contained App
+          <span class="brand-icon">⇄</span>
+          OpenAI Proxy
         </span>
         <div class="d-flex align-items-center gap-2">
           <span class="badge rounded-pill text-bg-success" id="conn-badge">connected</span>
@@ -27,15 +27,16 @@
     <main class="container-fluid">
       <div class="card mb-4 hero-card">
         <div class="card-body">
-          <h2 class="h4 mb-2">Welcome to your Go Application Framework</h2>
+          <h2 class="h4 mb-2">OpenAI-Compatible API Proxy</h2>
           <p class="mb-3 text-secondary">
-            This self-contained executable bundles backend API endpoints, a Bootstrap single-page
-            frontend, and auto-generated OpenAPI documentation all into a single binary. Works
-            completely offline.
+            Share one OpenAI-compatible endpoint between multiple users, with per-user usage
+            accounting, request logging and model filtering. Point clients at
+            <code>/v1/chat/completions</code> on this server; everything is forwarded to the
+            configured upstream, including streamed responses.
           </p>
           <div class="d-flex gap-2 flex-wrap">
             <a href="docs/api" class="btn btn-primary">Open API Docs (/docs/api)</a>
-            <button type="button" class="btn btn-outline-light" data-endpoint="api/v1/user">Verify Auth (/api/v1/user)</button>
+            <button type="button" class="btn btn-outline-light" data-endpoint="api/v1/usage">Usage (/api/v1/usage)</button>
             <button type="button" class="btn btn-outline-light" data-endpoint="api/v1/health">Health Check (/api/v1/health)</button>
           </div>
         </div>
@@ -57,16 +58,16 @@
                 <span class="font-monospace status-value" id="info-user">Loading&hellip;</span>
               </li>
               <li class="list-group-item d-flex justify-content-between">
-                <span class="text-secondary">Auth Provider</span>
-                <span class="font-monospace status-value" id="info-auth">Loading&hellip;</span>
+                <span class="text-secondary">Upstream Endpoint</span>
+                <span class="font-monospace status-value text-break text-end" id="info-upstream">-</span>
               </li>
               <li class="list-group-item d-flex justify-content-between">
-                <span class="text-secondary">Go Version</span>
-                <span class="font-monospace status-value" id="info-go">-</span>
+                <span class="text-secondary">Upstream API Key</span>
+                <span class="font-monospace status-value" id="info-key">-</span>
               </li>
               <li class="list-group-item d-flex justify-content-between">
-                <span class="text-secondary">OS / Architecture</span>
-                <span class="font-monospace status-value" id="info-os">-</span>
+                <span class="text-secondary">Model Filters</span>
+                <span class="font-monospace status-value" id="info-filters">-</span>
               </li>
               <li class="list-group-item d-flex justify-content-between">
                 <span class="text-secondary">Uptime</span>
@@ -79,22 +80,56 @@
         <div class="col-lg-8">
           <div class="card h-100">
             <div class="card-header d-flex justify-content-between align-items-center">
-              <h3 class="h6 mb-0">Application Resources (/api/v1/items)</h3>
-              <span class="badge text-bg-primary" id="items-count">0 items</span>
+              <h3 class="h6 mb-0">Usage by User</h3>
+              <span class="badge text-bg-primary" id="usage-total">0 requests</span>
             </div>
             <div class="card-body">
-              <form id="item-form" class="d-flex gap-2 mb-3">
-                <input
-                  type="text"
-                  id="item-name"
-                  class="form-control"
-                  placeholder="Enter new item name..."
-                  autocomplete="off"
-                  required
-                />
-                <button type="submit" class="btn btn-primary text-nowrap">+ Add Item</button>
-              </form>
-              <ul class="list-group items-list" id="items-list"></ul>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th class="text-end">Requests</th>
+                      <th class="text-end">Prompt Tokens</th>
+                      <th class="text-end">Completion Tokens</th>
+                      <th class="text-end">Total Tokens</th>
+                      <th>Last Activity</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usage-body">
+                    <tr><td colspan="6" class="text-center text-secondary">No activity recorded yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h3 class="h6 mb-0">Recent Requests</h3>
+              <button type="button" class="btn btn-sm btn-outline-light" id="refresh-logs">Refresh</button>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>User</th>
+                      <th>Endpoint</th>
+                      <th>Model</th>
+                      <th>Status</th>
+                      <th class="text-end">Duration</th>
+                      <th class="text-end">Tokens</th>
+                    </tr>
+                  </thead>
+                  <tbody id="logs-body">
+                    <tr><td colspan="7" class="text-center text-secondary">No proxied requests yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -107,7 +142,8 @@
                 <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/health">GET /health</button>
                 <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/user">GET /user</button>
                 <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/info">GET /info</button>
-                <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/items">GET /items</button>
+                <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/usage">GET /usage</button>
+                <button type="button" class="btn btn-sm btn-outline-light" data-endpoint="api/v1/logs">GET /logs</button>
               </div>
             </div>
             <div class="card-body">
@@ -119,7 +155,7 @@
     </main>
 
     <footer class="footer">
-      <p>Go Application Framework &middot; Self-Hosted &amp; Offline Capable &middot; Built with Go &amp; Bootstrap</p>
+      <p>OpenAI Proxy &middot; Self-Hosted &amp; Offline Capable &middot; Built with Go &amp; Bootstrap</p>
     </footer>
 
     <script src="vendor/bootstrap/bootstrap.bundle.min.js"></script>

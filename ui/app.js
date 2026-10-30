@@ -5,14 +5,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const connBadge = document.getElementById('conn-badge');
   const infoMode = document.getElementById('info-mode');
   const infoUser = document.getElementById('info-user');
-  const infoAuth = document.getElementById('info-auth');
-  const infoGo = document.getElementById('info-go');
-  const infoOs = document.getElementById('info-os');
+  const infoUpstream = document.getElementById('info-upstream');
+  const infoKey = document.getElementById('info-key');
+  const infoFilters = document.getElementById('info-filters');
   const infoUptime = document.getElementById('info-uptime');
-  const itemsCount = document.getElementById('items-count');
-  const itemsList = document.getElementById('items-list');
-  const itemForm = document.getElementById('item-form');
-  const itemName = document.getElementById('item-name');
+  const usageBody = document.getElementById('usage-body');
+  const usageTotal = document.getElementById('usage-total');
+  const logsBody = document.getElementById('logs-body');
+  const refreshLogs = document.getElementById('refresh-logs');
   const apiResponse = document.getElementById('api-response');
 
   function escapeHtml(value) {
@@ -21,17 +21,30 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  function setResponse(text) {
-    apiResponse.textContent = text;
-  }
-
   async function fetchJSON(url, options) {
     const res = await fetch(url, options);
     const data = await res.json();
     if (!res.ok) {
-      throw new Error(data.error || `Request to ${url} failed (${res.status})`);
+      throw new Error((data && data.error && data.error.message) || `Request to ${url} failed (${res.status})`);
     }
     return data;
+  }
+
+  function formatNumber(n) {
+    return Number(n || 0).toLocaleString();
+  }
+
+  function formatTime(value) {
+    if (!value) return '-';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? escapeHtml(value) : d.toLocaleString();
+  }
+
+  function statusBadge(status) {
+    const cls = status >= 500 || status >= 400 ? 'text-bg-danger'
+      : status >= 300 ? 'text-bg-warning'
+      : 'text-bg-success';
+    return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
   }
 
   async function loadUser() {
@@ -40,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
       userName.textContent = data.username;
       userMode.textContent = `${data.mode} mode (${data.auth_type})`;
       infoUser.textContent = data.username;
-      infoAuth.textContent = data.auth_type;
       connBadge.classList.remove('text-bg-danger');
       connBadge.classList.add('text-bg-success');
       connBadge.textContent = 'connected';
@@ -49,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
       userName.textContent = 'Offline / Disconnected';
       userMode.textContent = 'connection failed';
       infoUser.textContent = '-';
-      infoAuth.textContent = '-';
       connBadge.classList.remove('text-bg-success');
       connBadge.classList.add('text-bg-danger');
       connBadge.textContent = 'disconnected';
@@ -60,78 +71,103 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const data = await fetchJSON('api/v1/info');
       infoMode.textContent = data.mode;
-      infoGo.textContent = data.go_version;
-      infoOs.textContent = `${data.os}/${data.arch}`;
       infoUptime.textContent = data.uptime;
+      infoUpstream.textContent = data.upstream || 'not configured';
+      if (data.api_key_configured) {
+        infoKey.textContent = 'configured';
+        infoKey.classList.remove('text-danger');
+      } else {
+        infoKey.textContent = 'not set (client keys pass through)';
+        infoKey.classList.add('text-danger');
+      }
+      if (!data.allowed_models && !data.blocked_models) {
+        infoFilters.textContent = 'none (all models allowed)';
+      } else {
+        infoFilters.textContent = `${data.allowed_models} allowed / ${data.blocked_models} blocked`;
+      }
     } catch (err) {
       infoMode.textContent = '-';
-      infoGo.textContent = '-';
-      infoOs.textContent = '-';
       infoUptime.textContent = '-';
+      infoUpstream.textContent = '-';
+      infoKey.textContent = '-';
+      infoFilters.textContent = '-';
     }
   }
 
-  async function loadItems() {
+  async function loadUsage() {
     try {
-      const data = await fetchJSON('api/v1/items');
-      const items = data.items || [];
-      itemsCount.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
-      itemsList.innerHTML = '';
-      if (items.length === 0) {
-        itemsList.innerHTML = '<li class="list-group-item text-center text-secondary">No items found. Create one above!</li>';
+      const data = await fetchJSON('api/v1/usage');
+      usageTotal.textContent = `${formatNumber(data.total.requests)} request${data.total.requests === 1 ? '' : 's'}`;
+      usageBody.innerHTML = '';
+      if (!data.users || data.users.length === 0) {
+        usageBody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">No activity recorded yet.</td></tr>';
         return;
       }
-      items.forEach((item) => {
-        const li = document.createElement('li');
-        li.className = 'list-group-item d-flex justify-content-between align-items-center';
-        const info = document.createElement('div');
-        info.innerHTML =
-          `<div class="fw-semibold">${escapeHtml(item.name)}</div>` +
-          `<div class="small text-secondary">Created by ${escapeHtml(item.created_by)} at ${escapeHtml(new Date(item.created_at).toLocaleString())}</div>`;
-        const badge = document.createElement('span');
-        badge.className = 'badge text-bg-primary';
-        badge.textContent = `ID: ${item.id}`;
-        li.appendChild(info);
-        li.appendChild(badge);
-        itemsList.appendChild(li);
+      data.users.forEach((u) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td class="fw-semibold">${escapeHtml(u.user)}</td>` +
+          `<td class="text-end">${formatNumber(u.requests)}</td>` +
+          `<td class="text-end">${formatNumber(u.prompt_tokens)}</td>` +
+          `<td class="text-end">${formatNumber(u.completion_tokens)}</td>` +
+          `<td class="text-end">${formatNumber(u.total_tokens)}</td>` +
+          `<td>${formatTime(u.last_activity)}</td>`;
+        usageBody.appendChild(tr);
       });
     } catch (err) {
-      itemsList.innerHTML = '<li class="list-group-item text-center text-secondary">Failed to load items.</li>';
+      usageBody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Failed to load usage.</td></tr>';
     }
   }
 
-  itemForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = itemName.value.trim();
-    if (!name) return;
+  async function loadLogs() {
     try {
-      const data = await fetchJSON('api/v1/items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+      const data = await fetchJSON('api/v1/logs?limit=50');
+      logsBody.innerHTML = '';
+      if (!data.entries || data.entries.length === 0) {
+        logsBody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary">No proxied requests yet.</td></tr>';
+        return;
+      }
+      data.entries.forEach((e) => {
+        const tr = document.createElement('tr');
+        const endpoint = `${escapeHtml(e.method)} ${escapeHtml(e.path)}`;
+        const model = e.model ? escapeHtml(e.model) : '<span class="text-secondary">-</span>';
+        const stream = e.stream ? ' <span class="badge text-bg-info">stream</span>' : '';
+        tr.innerHTML =
+          `<td>${formatTime(e.time)}</td>` +
+          `<td>${escapeHtml(e.user)}</td>` +
+          `<td class="font-monospace small">${endpoint}</td>` +
+          `<td>${model}${stream}</td>` +
+          `<td>${statusBadge(e.status)}</td>` +
+          `<td class="text-end">${formatNumber(e.duration_ms)} ms</td>` +
+          `<td class="text-end">${formatNumber(e.total_tokens)}</td>`;
+        logsBody.appendChild(tr);
       });
-      itemName.value = '';
-      setResponse(JSON.stringify(data, null, 2));
-      loadItems();
     } catch (err) {
-      setResponse(`Error adding item: ${err.message}`);
+      logsBody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary">Failed to load logs.</td></tr>';
     }
-  });
+  }
 
   document.querySelectorAll('[data-endpoint]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const endpoint = btn.dataset.endpoint;
-      setResponse('Fetching API response...');
+      apiResponse.textContent = 'Fetching API response...';
       try {
         const data = await fetchJSON(endpoint);
-        setResponse(JSON.stringify(data, null, 2));
+        apiResponse.textContent = JSON.stringify(data, null, 2);
       } catch (err) {
-        setResponse(`Error calling ${endpoint}: ${err.message}`);
+        apiResponse.textContent = `Error calling ${endpoint}: ${err.message}`;
       }
     });
   });
 
+  refreshLogs.addEventListener('click', loadLogs);
+
   loadUser();
   loadSystemInfo();
-  loadItems();
+  loadUsage();
+  loadLogs();
+
+  // Keep the dashboard current as requests stream through the proxy.
+  setInterval(loadUsage, 5000);
+  setInterval(loadLogs, 5000);
 });

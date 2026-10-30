@@ -50,6 +50,11 @@ func registerMimeTypes() {
 	mime.AddExtensionType(".pdf", "application/pdf")
 }
 
+// defaultUpstream is the upstream endpoint used when neither the -upstream
+// flag nor the OPENAI_BASE_URL environment variable is set. It can be pointed
+// at any OpenAI-compatible service, including a local one.
+const defaultUpstream = "https://api.openai.com/v1"
+
 func main() {
 	registerMimeTypes()
 
@@ -63,6 +68,10 @@ func main() {
 	basePath := flag.String("base-path", getEnv("BASE_PATH", ""), "Comma-separated URL prefixes to serve under when mounted behind a reverse proxy at sub-paths (e.g. /magooify); the app is always also served from the site root")
 	noBrowser := flag.Bool("no-browser", false, "Disable automatic browser launch in desktop mode")
 	genDocs := flag.String("gen-docs", "", "Write the Swagger UI documentation page to the given path and exit")
+	upstream := flag.String("upstream", getEnv("OPENAI_BASE_URL", defaultUpstream), "Base URL of the OpenAI-compatible endpoint to proxy to, including the API version prefix (e.g. https://api.openai.com/v1)")
+	apiKey := flag.String("api-key", getEnv("OPENAI_API_KEY", ""), "API key sent to the upstream endpoint as a Bearer token; if empty the client's own Authorization header is forwarded")
+	allowedModels := flag.String("allowed-models", getEnv("ALLOWED_MODELS", ""), "Comma-separated list of allowed model names (a trailing * is a prefix wildcard); empty allows all")
+	blockedModels := flag.String("blocked-models", getEnv("BLOCKED_MODELS", ""), "Comma-separated list of blocked model names (a trailing * is a prefix wildcard)")
 	flag.Parse()
 
 	// Offline documentation generation (used by the build script to produce docs/api.html).
@@ -88,17 +97,41 @@ func main() {
 	addr := net.JoinHostPort(bindHost, *port)
 	basePaths := parseBasePaths(*basePath)
 
-	a := newAPI(isServerMode, docsFS)
+	cfg := ProxyConfig{
+		Upstream:      *upstream,
+		APIKey:        *apiKey,
+		AllowedModels: splitCSVList(*allowedModels),
+		BlockedModels: splitCSVList(*blockedModels),
+	}
+
+	a := newAPI(isServerMode, docsFS, cfg)
 
 	handler := buildHandler(a, basePaths)
 
 	user := a.getUser(&http.Request{})
 
 	log.Printf("==================================================")
-	log.Printf("Go Self-Contained App Starting")
+	log.Printf("OpenAI Proxy Starting")
 	log.Printf("Mode      : %s", strings.ToUpper(user.Mode))
 	log.Printf("User      : %s (%s)", user.Username, user.AuthType)
 	log.Printf("Listening : http://%s", addr)
+	if a.upstreamURL != nil {
+		log.Printf("Upstream  : %s", a.upstreamURL)
+		if cfg.APIKey != "" {
+			log.Printf("API key   : configured")
+		} else {
+			log.Printf("API key   : not set (client Authorization headers are forwarded)")
+		}
+		log.Printf("Proxy     : http://%s/v1/chat/completions", addr)
+	} else {
+		log.Printf("Upstream  : NOT CONFIGURED (proxy endpoints will return 503; use -upstream)")
+	}
+	if len(cfg.AllowedModels) > 0 {
+		log.Printf("Allowed   : %s", strings.Join(cfg.AllowedModels, ", "))
+	}
+	if len(cfg.BlockedModels) > 0 {
+		log.Printf("Blocked   : %s", strings.Join(cfg.BlockedModels, ", "))
+	}
 	for _, bp := range basePaths {
 		log.Printf("Base path : %s", bp)
 		log.Printf("UI        : http://%s%s/", addr, bp)
@@ -210,8 +243,22 @@ func buildHandler(a *api, basePaths []string) http.Handler {
 	mux.HandleFunc("/api/v1/health", a.health)
 	mux.HandleFunc("/api/v1/user", a.user)
 	mux.HandleFunc("/api/v1/info", a.info)
-	mux.HandleFunc("GET /api/v1/items", a.listItems)
-	mux.HandleFunc("POST /api/v1/items", a.createItem)
+	mux.HandleFunc("/api/v1/usage", a.usageHandler)
+	mux.HandleFunc("/api/v1/logs", a.logsHandler)
+
+	// OpenAI-compatible proxy endpoints under the canonical /v1 prefix.
+	mux.HandleFunc("/v1", a.proxyOpenAI)
+	mux.HandleFunc("/v1/", a.proxyOpenAI)
+	// Bare endpoint paths for clients whose base URL omits the /v1 suffix.
+	proxyRoutes := []string{
+		"/chat/completions", "/completions", "/responses", "/embeddings",
+		"/moderations", "/models", "/models/", "/images/", "/audio/",
+		"/files", "/files/", "/batches", "/batches/", "/fine_tuning/",
+		"/vector_stores", "/vector_stores/", "/threads", "/threads/",
+	}
+	for _, p := range proxyRoutes {
+		mux.HandleFunc(p, a.proxyOpenAI)
+	}
 
 	mux.HandleFunc("/docs/api", a.serveDocs)
 	mux.HandleFunc("/docs/", a.serveDocs)
@@ -329,6 +376,18 @@ func getEnv(key, defaultValue string) string {
 		return val
 	}
 	return defaultValue
+}
+
+// splitCSVList splits a comma-separated list of values, trimming whitespace
+// and discarding empty entries.
+func splitCSVList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // openBrowser launches the system's default web browser at the given URL.
