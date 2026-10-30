@@ -1,6 +1,6 @@
 This Git repository should contain a Go application that compiles into a single (per-platform), self-contained executable containing application logic, web-based user interface and API documentation.
 
-This Git repository is hosted on Github at: https://github.com/dhicks6345789/openapi-proxy
+This Git repository is hosted on Github at: https://github.com/dhicks6345789/openai-proxy
 
 The project homepage is at: https://sansay.co.uk/openai-proxy
 
