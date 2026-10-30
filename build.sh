@@ -21,7 +21,10 @@ human_size() {
 
 build_host() {
   echo "==> Building Go executable (host platform)..."
-  go build -o "$BIN" main.go api.go
+  # CGO_ENABLED=0 plus static external linker flags produce a fully static
+  # binary that runs anywhere, including minimal (musl-based) containers
+  # such as Alpine and empty "scratch" images.
+  CGO_ENABLED=0 go build -ldflags="-w -s -extldflags=-static" -o "$BIN" main.go api.go
   echo "==> Built: ./$BIN"
 }
 
@@ -29,10 +32,10 @@ build_target() {
   local os="$1" arch="$2" goarm="$3" out="$4"
   if [ -n "$goarm" ]; then
     echo " -> $os/$arch (GOARM=$goarm)..."
-    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$goarm" go build -ldflags="-w -s" -o "$out" main.go api.go
+    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$goarm" go build -ldflags="-w -s -extldflags=-static" -o "$out" main.go api.go
   else
     echo " -> $os/$arch..."
-    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -ldflags="-w -s" -o "$out" main.go api.go
+    CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -ldflags="-w -s -extldflags=-static" -o "$out" main.go api.go
   fi
 }
 
