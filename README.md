@@ -1,8 +1,8 @@
-# Go App
+# OpenAI Proxy
 
-A project to act as an example framework to produce a self-hostable Go application that contains application logic, an embedded Bootstrap web user interface and interactive OpenAPI documentation into a single executable.
+A self-contained application for proxying an OpenAI-compatible API endpoint. This is to allow one OpenAI endpoint to be shared between multiple users, with per-user usage accounting, logging and filtering in place. Designed to be used by schools and in corporate environments as a gateway server in front of an AI inference service of some sort - maybe a commercially available service (OpenRouter, etc), or possibly a local dedicated AI server.
 
-This application itself doesn't do anything much, it just presents a basic user interface showing the current user name. 
+Distributed as a single Go executable containing application logic, an embedded Bootstrap web user interface and interactive OpenAPI documentation.
 
 ## Features
 
@@ -20,7 +20,7 @@ This application itself doesn't do anything much, it just presents a basic user 
 
 ### Desktop
 
-Simply download and run the executable for your platform from the [project homepage](https://sansay.co.uk/go-app/).
+Simply download and run the executable for your platform from the [project homepage](https://sansay.co.uk/openai-proxy/).
 
 ### Server
 
@@ -31,35 +31,35 @@ You can run Go App behind an authenticating proxy server - the proxy server hand
 # needed to get executable files inside a "scratch" image. We need to build a "downloader" image...
 FROM alpine:latest AS downloader
 RUN apk add --no-cache curl && \
-    curl -L https://www.sansay.co.uk/go-app/go-app-linux-amd64 -o /go-app && \
-    chmod +x /go-app
+    curl -L https://www.sansay.co.uk/openai-proxy/openai-proxy-linux-amd64 -o /openai-proxy && \
+    chmod +x /openai-proxy
 
 # ...then use that to build the actual image we want.
 FROM scratch
-COPY --from=downloader /go-app /go-app
+COPY --from=downloader /openai-proxy /openai-proxy
 ```
 And to docker compose, add something like:
 ```
 goapp:
     image: GO_APP_IMAGE
-    command: /go-app -mode=server -port=8080 -base-path=/go-app
+    command: /openai-proxy -mode=server -port=8080 -base-path=/openai-proxy
     container_name: goapp
     restart: unless-stopped
 ```
-From the Pangolin control panel you would then create a resource, possibly with a prefix ("go-app" or whatever you have named your derived app) using whatever authentication and access controls you like, that pointed at that container (`goapp:8080`). If you do use a prefix for the resource, be sure to add that prefix as the "-base-path" option when running the server.
+From the Pangolin control panel you would then create a resource, possibly with a prefix ("openai-proxy" or whatever you have named your derived app) using whatever authentication and access controls you like, that pointed at that container (`goapp:8080`). If you do use a prefix for the resource, be sure to add that prefix as the "-base-path" option when running the server.
 
 ## Building
 
 Clone the repository:
 
 ```
-git clone https://github.com/dhicks6345789/go-app.git
+git clone https://github.com/dhicks6345789/openai-proxy.git
 ```
 
 And run build:
 
 ```
-cd go-app
+cd openai-proxy
 bash build.sh build-all
 ```
 
@@ -68,13 +68,5 @@ This will compile the executables for all platforms.
 You can build executables and generate documentation, including Swaggo's interactive API documentation, and copy the lot directly to somewhere they can be served as a web site to act as a project homepage using "build.sh dist". You just need to specify the path you want the files to go to, e.g.:
 
 ```
-bash build.sh dist ~/www/go-app
+bash build.sh dist ~/www/openai-proxy
 ```
-
-## Using As a Basis For Your Own Projects
-
-The purpose of this project is to act as a basic starting point for a self-contained "app" that is easy for end users to run and use. It should produce executables able to run on your preferred platform, either as a "desktop app" (a local-only server with a web interface) or as a compact server. If you just compile and run the basic project you will get a minimal application that just reports back the username, useful to test your build process and that any authentication / endpoint routing is working okay.
-
-Extending this project should be a case of cloning the Git repository and adding your own functions to `api.go` and user interface elements to `ui/index.html`, either by hand or by instructing an AI coding agent. An AGENTS.md is included.
-
-This project was built using OpenCode and its "Big Pickle" model (free, as of August 2026), an instance of GLM-4.6. Documentation (this README) was written by hand.
